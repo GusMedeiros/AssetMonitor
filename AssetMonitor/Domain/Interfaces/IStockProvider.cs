@@ -4,5 +4,5 @@ namespace AssetMonitor.Domain.Interfaces;
 
 public interface IStockProvider
 {
-    public Task<StockQuote> GetAssetPrice(string assetCode);
+    public Task<StockQuote> GetAssetPriceAsync(string assetCode);
 }
