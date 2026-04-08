@@ -37,14 +37,12 @@ EmailSettings? emailSettings = builder.Configuration.GetSection("EmailSettings")
 // Config validation
 if (string.IsNullOrEmpty(brapiToken))
 {
-    Console.WriteLine($"[ERRO CRÍTICO] Token da Brapi não encontrado! Verifique o arquivo appsettings.{builder.Environment.EnvironmentName}.json");
-    return;
+    throw new ArgumentException($"[ERRO CRÍTICO] Token da Brapi não encontrado! Verifique o arquivo appsettings.{builder.Environment.EnvironmentName}.json");
 }
 
 if (emailSettings == null || string.IsNullOrEmpty(emailSettings.Username))
 {
-    Console.WriteLine($"[ERRO CRÍTICO] Configurações de E-mail ausentes no ambiente '{builder.Environment.EnvironmentName}'.");
-    return;
+    throw new ArgumentException($"[ERRO CRÍTICO] Configurações de E-mail ausentes no ambiente '{builder.Environment.EnvironmentName}'.");
 }
 
 builder.Services.AddHttpClient<IStockProvider, BrapiStockProvider>(client => 
