@@ -24,11 +24,13 @@ public class MonitorEngine
 
         if (_lastAlert != AlertState.Buy && quote.Value < buyPrice)
         {
+            Console.WriteLine($"[PREÇO DE COMPRA DETECTADO] Tentando notificar...");
             await _emailService.SendAlertAsync(destination, $"COMPRA: {assetCode}", $"Preço: {quote.Value}", ct);
             _lastAlert = AlertState.Buy;
         }
         else if (_lastAlert != AlertState.Sell && quote.Value > sellPrice)
         {
+            Console.WriteLine($"[PREÇO DE VENDA DETECTADO] Tentando notificar...");
             await _emailService.SendAlertAsync(destination, $"VENDA: {assetCode}", $"Preço: {quote.Value}", ct);
             _lastAlert = AlertState.Sell;
         }
