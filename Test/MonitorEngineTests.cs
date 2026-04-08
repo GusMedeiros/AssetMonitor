@@ -1,4 +1,5 @@
 using Moq;
+using Xunit;
 using AssetMonitor.Domain.Interfaces;
 using AssetMonitor.Domain.ValueObjects;
 using AssetMonitor.Application.Services;
@@ -19,21 +20,97 @@ public class MonitorEngineTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_ShouldSendEmail_WhenPriceIsBelowBuyTarget()
+    public async Task ProcessAssetAsync_ShouldSendEmail_WhenPriceIsBelowBuyTarget()
     {
-        // Test case: quote = BRL19, targets = [20, 30]
         _mockStockProvider
             .Setup(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new StockQuote("BRL", 19.00m));
 
-        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, 
-            "exemplo@exemplo.com", CancellationToken.None);
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
         
         _mockEmailService.Verify(x => x.SendAlertAsync(
-                "exemplo@exemplo.com", 
-                It.Is<string>(subj => subj.Contains("COMPRA")),
-                It.IsAny<string>(),
-                It.IsAny<CancellationToken>()),
+            "exemplo@exemplo.com", 
+            It.Is<string>(subj => subj.Contains("COMPRA")),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldSendEmail_WhenPriceIsAboveSellTarget()
+    {
+        _mockStockProvider
+            .Setup(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 31.00m));
+
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            "exemplo@exemplo.com", 
+            It.Is<string>(subj => subj.Contains("VENDA")),
+            It.IsAny<string>(),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldNotSendEmail_WhenPriceIsBetweenTargets()
+    {
+        _mockStockProvider
+            .Setup(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 25.00m));
+
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldNotSendDuplicateEmails_ForConsecutiveBuyAlerts()
+    {
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 19.00m))
+            .ReturnsAsync(new StockQuote("BRL", 18.00m));
+
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
             Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldNotSendDuplicateEmails_ForConsecutiveSellAlerts()
+    {
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 31.00m))
+            .ReturnsAsync(new StockQuote("BRL", 35.00m));
+
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("VENDA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldSendBuyEmailAgain_AfterPriceReturnsToNeutralZone()
+    {
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 19.00m))
+            .ReturnsAsync(new StockQuote("BRL", 25.00m))
+            .ReturnsAsync(new StockQuote("BRL", 18.00m));
+
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Exactly(2));
     }
 }
