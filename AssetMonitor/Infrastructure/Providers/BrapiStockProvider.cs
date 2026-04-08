@@ -16,14 +16,15 @@ public class BrapiStockProvider : IStockProvider
         _apiToken = apiToken;
     }
 
-    public async Task<StockQuote> GetAssetPriceAsync(string assetCode)
+public async Task<StockQuote> GetAssetPriceAsync(string assetCode, CancellationToken ct)
     {
         var url = $"https://brapi.dev/api/quote/{assetCode}?token={_apiToken}";
-        var response = await _httpClient.GetFromJsonAsync<BrapiResponse>(url);
+        
+        var response = await _httpClient.GetFromJsonAsync<BrapiResponse>(url, ct);
         var result = response?.Results?.FirstOrDefault();
 
         if (result == null) throw new Exception($"Asset '{assetCode}' not found.");
 
-        return new StockQuote(result.Currency ?? "Moeda desconhecida", result.RegularMarketPrice);
+        return new StockQuote(result.Currency ?? "Moeda Desconhecida", result.RegularMarketPrice);
     }
 }
