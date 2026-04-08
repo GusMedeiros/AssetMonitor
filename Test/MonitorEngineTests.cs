@@ -3,6 +3,7 @@ using Xunit;
 using AssetMonitor.Domain.Interfaces;
 using AssetMonitor.Domain.ValueObjects;
 using AssetMonitor.Application.Services;
+using AssetMonitor.Domain.Exceptions;
 
 namespace Test;
 
@@ -112,5 +113,31 @@ public class MonitorEngineTests
         _mockEmailService.Verify(x => x.SendAlertAsync(
             It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
             Times.Exactly(2));
+    }
+    
+    // Tests for "sad paths"
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldThrowInvalidAssetException_WhenAssetIsNotFound()
+    {
+        _mockStockProvider
+            .Setup(x => x.GetAssetPriceAsync("PETR", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidAssetException("Ativo não encontrado"));
+
+        await Assert.ThrowsAsync<InvalidAssetException>(() => 
+            _engine.ProcessAssetAsync("PETR", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None));
+            
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_ShouldThrowProviderException_WhenApiFails()
+    {
+        _mockStockProvider
+            .Setup(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new ProviderException("Rate limit excedido"));
+
+        await Assert.ThrowsAsync<ProviderException>(() => 
+            _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None));
     }
 }
