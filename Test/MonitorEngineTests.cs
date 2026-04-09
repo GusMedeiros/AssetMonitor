@@ -4,6 +4,7 @@ using AssetMonitor.Domain.Interfaces;
 using AssetMonitor.Domain.ValueObjects;
 using AssetMonitor.Application.Services;
 using AssetMonitor.Domain.Exceptions;
+using AssetMonitor.Infrastructure.Configurations;
 
 namespace Test;
 
@@ -17,7 +18,7 @@ public class MonitorEngineTests
     {
         _mockStockProvider = new Mock<IStockProvider>();
         _mockEmailService = new Mock<IEmailService>();
-        _engine = new MonitorEngine(_mockStockProvider.Object, _mockEmailService.Object);
+        _engine = new MonitorEngine(_mockStockProvider.Object, _mockEmailService.Object, new MonitorSettings(0));
     }
 
     [Fact]

@@ -2,6 +2,7 @@ using AssetMonitor.Application.Services;
 using AssetMonitor.Domain.Exceptions;
 using AssetMonitor.Domain.Interfaces;
 using AssetMonitor.Domain.ValueObjects;
+using AssetMonitor.Infrastructure.Configurations;
 using Moq;
 
 namespace Test;
@@ -18,7 +19,7 @@ public class MonitorWorkerTests
         _stockProviderMock = new Mock<IStockProvider>();
         _emailServiceMock = new Mock<IEmailService>();
         
-        _engine = new MonitorEngine(_stockProviderMock.Object, _emailServiceMock.Object);
+        _engine = new MonitorEngine(_stockProviderMock.Object, _emailServiceMock.Object, new MonitorSettings(0));
         _worker = new MonitorWorker(_engine);
     }
     
@@ -38,6 +39,7 @@ public class MonitorWorkerTests
         _stockProviderMock.Verify(x => x.GetAssetPriceAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
         _emailServiceMock.VerifyNoOtherCalls();
     }
+
     [Fact]
     public async Task StartAsync_WhenCanceledDuringApiRequest_ShouldBreakLoopGracefully()
     {

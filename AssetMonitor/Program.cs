@@ -33,7 +33,8 @@ HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 string? brapiToken = builder.Configuration["Brapi:Token"];
 EmailSettings? emailSettings = builder.Configuration.GetSection("EmailSettings").Get<EmailSettings>();
-
+MonitorSettings monitorSettings = builder.Configuration.GetSection("MonitorSettings").Get<MonitorSettings>() 
+                                  ?? new MonitorSettings(0);
 // Config validation
 if (string.IsNullOrEmpty(brapiToken))
 {
@@ -48,7 +49,7 @@ if (emailSettings == null || string.IsNullOrEmpty(emailSettings.Username))
 builder.Services.AddHttpClient<IStockProvider, BrapiStockProvider>(client => 
     new BrapiStockProvider(client, brapiToken));
 builder.Services.AddSingleton<IEmailService>(new MailKitEmailService(emailSettings));
-
+builder.Services.AddSingleton(monitorSettings);
 builder.Services.AddSingleton<MonitorEngine>();
 builder.Services.AddTransient<MonitorWorker>();
 
