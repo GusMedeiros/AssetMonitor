@@ -28,7 +28,7 @@ if (buyPrice >= sellPrice)
     Console.WriteLine("Aviso: O preço de compra está maior ou igual ao de venda. Verifique os parâmetros.");
 }
 
-// DI and configs setup
+// Configs setup
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
 
 string? brapiToken = builder.Configuration["Brapi:Token"];
@@ -46,8 +46,25 @@ if (emailSettings == null || string.IsNullOrEmpty(emailSettings.Username))
     throw new ArgumentException($"[ERRO CRÍTICO] Configurações de E-mail ausentes no ambiente '{builder.Environment.EnvironmentName}'.");
 }
 
-builder.Services.AddHttpClient<IStockProvider, BrapiStockProvider>(client => 
-    new BrapiStockProvider(client, brapiToken));
+// Dependency injection setup
+builder.Services.AddHttpClient();
+builder.Services.AddTransient<BrapiStockProvider>(sp => 
+{
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient();
+    
+    return new BrapiStockProvider(httpClient, brapiToken);
+});
+
+builder.Services.AddSingleton<IStockProvider>(sp => 
+{
+    var brapi = sp.GetRequiredService<BrapiStockProvider>();
+    
+    var redundancyList = new List<IStockProvider> { brapi };
+    
+    return new CompositeStockProvider(redundancyList);
+});
+
 builder.Services.AddSingleton<IEmailService>(new MailKitEmailService(emailSettings));
 builder.Services.AddSingleton(monitorSettings);
 builder.Services.AddSingleton<MonitorEngine>();
