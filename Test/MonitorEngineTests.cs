@@ -116,7 +116,6 @@ public class MonitorEngineTests
             Times.Exactly(2));
     }
     
-    // Tests for "sad paths"
     [Fact]
     public async Task ProcessAssetAsync_ShouldThrowInvalidAssetException_WhenAssetIsNotFound()
     {
@@ -140,5 +139,73 @@ public class MonitorEngineTests
 
         await Assert.ThrowsAsync<ProviderException>(() => 
             _engine.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None));
+    }
+    
+    [Fact]
+    public async Task ProcessAssetAsync_WithCooldown_ShouldBlockAlert_WhenPriceJitters()
+    {
+        var engineWithCooldown = new MonitorEngine(_mockStockProvider.Object, _mockEmailService.Object, new MonitorSettings(30));
+
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 19.00m))
+            .ReturnsAsync(new StockQuote("BRL", 25.00m))
+            .ReturnsAsync(new StockQuote("BRL", 18.00m));
+
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_WithCooldown_ShouldNotBlock_WhenAlertTargetChanges()
+    {
+        var engineWithCooldown = new MonitorEngine(_mockStockProvider.Object, _mockEmailService.Object, new MonitorSettings(30));
+
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 19.00m))
+            .ReturnsAsync(new StockQuote("BRL", 35.00m));
+
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Once);
+            
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("VENDA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessAssetAsync_WithCooldown_ShouldSendAlertAgain_AfterCooldownExpires()
+    {
+        var engineWithCooldown = new MonitorEngine(_mockStockProvider.Object, _mockEmailService.Object, new MonitorSettings(30));
+
+        _mockStockProvider
+            .SetupSequence(x => x.GetAssetPriceAsync("PETR4", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new StockQuote("BRL", 19.00m))
+            .ReturnsAsync(new StockQuote("BRL", 25.00m))
+            .ReturnsAsync(new StockQuote("BRL", 18.00m));
+
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        var field = typeof(MonitorEngine).GetField("_lastBuyAlertTime", 
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+        field!.SetValue(engineWithCooldown, DateTime.Now.AddMinutes(-31));
+
+        await engineWithCooldown.ProcessAssetAsync("PETR4", 20.00m, 30.00m, "exemplo@exemplo.com", CancellationToken.None);
+
+        _mockEmailService.Verify(x => x.SendAlertAsync(
+            It.IsAny<string>(), It.Is<string>(subj => subj.Contains("COMPRA")), It.IsAny<string>(), It.IsAny<CancellationToken>()), 
+            Times.Exactly(2));
     }
 }
